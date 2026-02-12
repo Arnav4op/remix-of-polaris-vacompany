@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,16 +26,14 @@ interface RouteImportMappingProps {
   onCancel: () => void;
 }
 
-const rankOptions = [
-  { value: "cadet", label: "Cadet" },
-  { value: "first_officer", label: "First Officer" },
-  { value: "captain", label: "Captain" },
-  { value: "senior_captain", label: "Senior Captain" },
-  { value: "commander", label: "Commander" },
-];
+const normalizeValue = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-// Map common rank strings to system values
-const normalizeRank = (rank: string): string | null => {
+// Map common rank strings to system values and fallback to active rank config names/labels
+const normalizeRank = (
+  rank: string,
+  rankConfigLookup: Record<string, string>,
+  activeRankNames: Set<string>
+): string | null => {
   const normalized = rank.toLowerCase().replace(/[\s_-]/g, "");
   const rankMap: Record<string, string> = {
     "cadet": "cadet",
@@ -47,10 +45,47 @@ const normalizeRank = (rank: string): string | null => {
     "commander": "commander",
     "cmd": "commander",
   };
-  return rankMap[normalized] || null;
+  const legacyMatch = rankMap[normalized];
+  if (legacyMatch && activeRankNames.has(legacyMatch)) {
+    return legacyMatch;
+  }
+
+  return rankConfigLookup[normalizeValue(rank)] || legacyMatch || null;
 };
 
 export function RouteImportMapping({ parsedRoutes, onComplete, onCancel }: RouteImportMappingProps) {
+  const { data: rankConfigs } = useQuery({
+    queryKey: ["rank-configs", "active"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("rank_configs")
+        .select("name,label,order_index")
+        .eq("is_active", true)
+        .order("order_index");
+      return data || [];
+    },
+  });
+
+  const rankConfigLookup = useMemo(() => {
+    const lookup: Record<string, string> = {};
+    for (const config of rankConfigs || []) {
+      lookup[normalizeValue(config.name)] = config.name;
+      if (config.label) lookup[normalizeValue(config.label)] = config.name;
+    }
+    return lookup;
+  }, [rankConfigs]);
+
+  const activeRankNames = useMemo(
+    () => new Set((rankConfigs || []).map((config) => config.name)),
+    [rankConfigs]
+  );
+
+  const rankOptions = useMemo(
+    () => (rankConfigs || []).map((config) => ({ value: config.name, label: config.label || config.name })),
+    [rankConfigs]
+  );
+  const defaultRank = rankOptions[0]?.value || "cadet";
+
   // Extract unique aircraft strings from CSV (like "Saudia A320")
   const uniqueAircraftStrings = [...new Set(parsedRoutes.map(r => r.aircraft_icao).filter(Boolean))] as string[];
   
@@ -59,7 +94,7 @@ export function RouteImportMapping({ parsedRoutes, onComplete, onCancel }: Route
     parsedRoutes
       .map(r => r.min_rank)
       .filter(Boolean)
-      .filter(rank => !normalizeRank(rank!))
+      .filter(rank => !normalizeRank(rank!, rankConfigLookup, activeRankNames))
   )] as string[];
 
   // Mappings state
@@ -113,10 +148,10 @@ export function RouteImportMapping({ parsedRoutes, onComplete, onCancel }: Route
       const aircraftMapping = route.aircraft_icao ? aircraftMappings[route.aircraft_icao] : null;
       
       // Get rank - try auto-mapping first, then user mapping
-      let finalRank = "cadet";
+      let finalRank = defaultRank;
       if (route.min_rank) {
-        const autoMapped = normalizeRank(route.min_rank);
-        finalRank = autoMapped || rankMappings[route.min_rank] || "cadet";
+        const autoMapped = normalizeRank(route.min_rank, rankConfigLookup, activeRankNames);
+        finalRank = autoMapped || rankMappings[route.min_rank] || defaultRank;
       }
 
       return {
