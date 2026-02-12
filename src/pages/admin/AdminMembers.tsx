@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,14 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Users, Search, Edit } from "lucide-react";
 import { toast } from "sonner";
 
-const rankOptions = [
-  { value: "cadet", label: "Cadet" },
-  { value: "first_officer", label: "First Officer" },
-  { value: "captain", label: "Captain" },
-  { value: "senior_captain", label: "Senior Captain" },
-  { value: "commander", label: "Commander" },
-];
-
 export default function AdminMembers() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -37,6 +29,27 @@ export default function AdminMembers() {
     manually_ranked: false,
   });
   const [isAdmin_role, setIsAdminRole] = useState(false);
+
+  const { data: rankConfigs } = useQuery({
+    queryKey: ["rank-configs", "active"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("rank_configs")
+        .select("name,label,order_index")
+        .eq("is_active", true)
+        .order("order_index");
+      return data || [];
+    },
+  });
+
+  const rankOptions = useMemo(
+    () => (rankConfigs || []).map((config) => ({ value: config.name, label: config.label || config.name })),
+    [rankConfigs]
+  );
+  const rankLabelMap = useMemo(
+    () => new Map(rankOptions.map((rank) => [rank.value, rank.label])),
+    [rankOptions]
+  );
 
   const { data: pilots, isLoading } = useQuery({
     queryKey: ["admin-pilots"],
@@ -192,7 +205,7 @@ export default function AdminMembers() {
                         <td className="py-3 px-2 font-medium">{pilot.full_name}</td>
                         <td className="py-3 px-2 font-mono text-xs">{pilot.pid}</td>
                         <td className="py-3 px-2 capitalize">
-                          <Badge variant="outline">{(pilot.current_rank || "cadet").replace(/_/g, " ")}</Badge>
+                          <Badge variant="outline">{rankLabelMap.get(pilot.current_rank || "") || (pilot.current_rank || "cadet").replace(/_/g, " ")}</Badge>
                         </td>
                         <td className="py-3 px-2">{Number(pilot.total_hours || 0).toFixed(1)}h</td>
                         <td className="py-3 px-2">{pilot.total_pireps || 0}</td>

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,6 +45,28 @@ export default function AdminRoutes() {
     notes: "",
   });
 
+  const { data: rankConfigs } = useQuery({
+    queryKey: ["rank-configs", "active"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("rank_configs")
+        .select("name,label,order_index")
+        .eq("is_active", true)
+        .order("order_index");
+      return data || [];
+    },
+  });
+
+  const rankOptions = useMemo(
+    () => (rankConfigs || []).map((config) => ({ value: config.name, label: config.label || config.name })),
+    [rankConfigs]
+  );
+  const defaultRank = rankOptions[0]?.value || "cadet";
+  const rankLabelMap = useMemo(
+    () => new Map(rankOptions.map((rank) => [rank.value, rank.label])),
+    [rankOptions]
+  );
+
   const { data: routes, isLoading } = useQuery({
     queryKey: ["admin-routes"],
     queryFn: async () => {
@@ -73,7 +95,7 @@ export default function AdminRoutes() {
         aircraft_icao: route.aircraft_icao || null,
         route_type: route.route_type,
         est_flight_time_minutes: route.est_flight_time_minutes,
-        min_rank: route.min_rank as "cadet" | "first_officer" | "captain" | "senior_captain" | "commander",
+        min_rank: route.min_rank,
         notes: route.notes || null,
       });
       if (error) throw error;
@@ -89,7 +111,7 @@ export default function AdminRoutes() {
         aircraft_icao: "",
         route_type: "passenger",
         est_flight_time_minutes: 0,
-        min_rank: "cadet",
+        min_rank: defaultRank,
         notes: "",
       });
     },
@@ -98,6 +120,16 @@ export default function AdminRoutes() {
       toast.error("Failed to add route");
     },
   });
+
+  useEffect(() => {
+    if (!rankOptions.length) return;
+    setNewRoute((prev) => {
+      if (rankOptions.some((rank) => rank.value === prev.min_rank)) {
+        return prev;
+      }
+      return { ...prev, min_rank: defaultRank };
+    });
+  }, [defaultRank, rankOptions]);
 
   const deleteRouteMutation = useMutation({
     mutationFn: async (routeId: string) => {
@@ -275,7 +307,7 @@ export default function AdminRoutes() {
         livery: route.livery || null,
         route_type: (route.route_type || "passenger") as "passenger" | "cargo",
         est_flight_time_minutes: route.est_flight_time_minutes || 0,
-        min_rank: route.min_rank || "cadet",
+        min_rank: route.min_rank || defaultRank,
         notes: route.notes || null,
       }));
 
@@ -491,11 +523,11 @@ export default function AdminRoutes() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cadet">Cadet</SelectItem>
-                      <SelectItem value="first_officer">First Officer</SelectItem>
-                      <SelectItem value="captain">Captain</SelectItem>
-                      <SelectItem value="senior_captain">Senior Captain</SelectItem>
-                      <SelectItem value="commander">Commander</SelectItem>
+                      {rankOptions.map((rank) => (
+                        <SelectItem key={rank.value} value={rank.value}>
+                          {rank.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -571,7 +603,7 @@ export default function AdminRoutes() {
                         {Math.floor(route.est_flight_time_minutes / 60)}:
                         {(route.est_flight_time_minutes % 60).toString().padStart(2, "0")}
                       </td>
-                      <td className="py-3 px-2 capitalize">{route.min_rank?.replace("_", " ")}</td>
+                      <td className="py-3 px-2 capitalize">{rankLabelMap.get(route.min_rank || "") || route.min_rank?.replace(/_/g, " ")}</td>
                       <td className="py-3 px-2">
                         <Badge variant={route.is_active ? "default" : "secondary"}>
                           {route.is_active ? "Yes" : "No"}
