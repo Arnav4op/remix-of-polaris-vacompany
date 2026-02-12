@@ -14,6 +14,7 @@ import { CalendarIcon, Loader2, Plane } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { sendDiscordNotification } from "@/lib/discordNotifications";
 
 const TEMP_OPERATOR_FALLBACK = [
   "Aeroflot", "Azerbaijan Airlines", "Uzbekistan Airways", "Belavia",
@@ -124,22 +125,21 @@ export default function FilePirep() {
 
       // Send Discord webhook notification for new PIREP
       try {
-        await supabase.functions.invoke("discord-rank-notification", {
-          body: {
-            type: "new_pirep",
-            pilot_name: pilot.full_name,
-            pid: pilot.pid,
-            flight_number: flightNumber.toUpperCase(),
-            dep_icao: depIcao.toUpperCase(),
-            arr_icao: arrIcao.toUpperCase(),
-            aircraft_icao: aircraftIcao,
-            flight_hours: hours,
-            operator,
-            flight_type: flightType,
-          },
+        await sendDiscordNotification({
+          type: "new_pirep",
+          pilot_name: pilot.full_name,
+          pid: pilot.pid,
+          flight_number: flightNumber.toUpperCase(),
+          dep_icao: depIcao.toUpperCase(),
+          arr_icao: arrIcao.toUpperCase(),
+          aircraft_icao: aircraftIcao,
+          flight_hours: hours,
+          operator,
+          flight_type: flightType,
         });
       } catch (discordErr) {
         console.error("Discord notification failed:", discordErr);
+        toast.warning("PIREP saved, but Discord notification failed.");
       }
 
       toast.success("PIREP submitted successfully!");

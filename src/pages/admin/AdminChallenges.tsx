@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Plus, Trash2, Edit, Target } from "lucide-react";
 import { toast } from "sonner";
+import { sendDiscordNotification } from "@/lib/discordNotifications";
 
 export default function AdminChallenges() {
   const { isAdmin } = useAuth();
@@ -45,17 +46,16 @@ export default function AdminChallenges() {
 
         // Send Discord notification for new challenge
         try {
-          await supabase.functions.invoke("discord-rank-notification", {
-            body: {
-              type: "new_challenge",
-              name: data.name,
-              description: data.description || null,
-              destination_icao: data.destination_icao || null,
-              image_url: data.image_url || null,
-            },
+          await sendDiscordNotification({
+            type: "new_challenge",
+            name: data.name,
+            description: data.description || null,
+            destination_icao: data.destination_icao || null,
+            image_url: data.image_url || null,
           });
         } catch (e) {
           console.error("Discord challenge notification failed:", e);
+          toast.warning("Challenge created, but Discord notification failed.");
         }
       }
     },
