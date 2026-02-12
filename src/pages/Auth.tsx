@@ -95,7 +95,7 @@ export default function AuthPage() {
           {/* Blue marking area: VACompany logo */}
           <img src={vacompanyLogo} alt="VACompany" className="h-16 w-auto object-contain mb-4" />
           <p className="text-lg text-foreground/90 max-w-md">
-            Welcome to the professional crew management system for Aeroflot Virtual Group pilots on Infinite Flight.
+            Welcome to the professional crew management system for Demo Virtual Group pilots on Infinite Flight.
           </p>
         </div>
       </div>
@@ -153,7 +153,7 @@ export default function AuthPage() {
               </form>
 
               <div className="mt-6 text-center text-sm">
-                <span className="text-muted-foreground">New to Aeroflot VA? </span>
+                <span className="text-muted-foreground">New to Demo Virtual? </span>
                 <Link to="/apply" className="text-primary hover:underline font-medium">
                   Apply to join
                 </Link>
