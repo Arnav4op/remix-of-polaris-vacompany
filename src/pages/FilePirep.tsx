@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const operators = [
+const TEMP_OPERATOR_FALLBACK = [
   "Aeroflot", "Azerbaijan Airlines", "Uzbekistan Airways", "Belavia",
   "S7 Airlines", "AirBridge Cargo", "Saudia", "Emirates", "Fly Dubai",
   "Emirates SkyCargo", "Aegean Airlines", "Qatar Airways",
@@ -71,6 +71,25 @@ export default function FilePirep() {
       return data || [];
     },
   });
+
+  const { data: activeOperators } = useQuery({
+    queryKey: ["operator-configs", "active"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("operator_configs")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("order_index", { ascending: true })
+        .order("name", { ascending: true });
+
+      return data || [];
+    },
+  });
+
+  const operatorOptions =
+    activeOperators && activeOperators.length > 0
+      ? activeOperators.map((config) => config.name)
+      : TEMP_OPERATOR_FALLBACK;
 
   const currentMultiplierValue = parseFloat(selectedMultiplier) || 1;
 
@@ -214,7 +233,7 @@ export default function FilePirep() {
                   <Select value={operator} onValueChange={setOperator} disabled={isLoading}>
                     <SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger>
                     <SelectContent>
-                      {operators.map((op) => (
+                      {operatorOptions.map((op) => (
                         <SelectItem key={op} value={op}>{op}</SelectItem>
                       ))}
                     </SelectContent>
