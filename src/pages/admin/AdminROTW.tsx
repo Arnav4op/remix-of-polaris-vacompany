@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Plus, Trash2, Star, Sparkles } from "lucide-react";
 import { format, startOfWeek, addWeeks } from "date-fns";
 import { toast } from "sonner";
+import { sendDiscordNotification } from "@/lib/discordNotifications";
 
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -125,18 +126,17 @@ export default function AdminROTW() {
       const route = routes?.find((r) => r.id === routeId);
       if (route) {
         try {
-          await supabase.functions.invoke("discord-rank-notification", {
-            body: {
-              type: "featured_route",
-              route_number: route.route_number,
-              dep_icao: route.dep_icao,
-              arr_icao: route.arr_icao,
-              aircraft_icao: route.aircraft_icao,
-              featured_date: today,
-            },
+          await sendDiscordNotification({
+            type: "featured_route",
+            route_number: route.route_number,
+            dep_icao: route.dep_icao,
+            arr_icao: route.arr_icao,
+            aircraft_icao: route.aircraft_icao,
+            featured_date: today,
           });
         } catch (e) {
           console.error("Discord notification failed:", e);
+          toast.warning("Featured route saved, but Discord notification failed.");
         }
       }
     },
